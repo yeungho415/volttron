@@ -217,6 +217,59 @@ class FanEntity(HomeAssistantEntity):
             raise ValueError("Fan oscillating must be bool or 0/1")
 
 
+class SwitchEntity(HomeAssistantEntity):
+    """Entity handler for Home Assistant switch domain.
+    
+    Switches are simple on/off devices like smart plugs, relays, etc.
+    Services: switch.turn_on, switch.turn_off, switch.toggle
+    """
+    def set_state(self, value):
+        if isinstance(value, int) and value in (0, 1):
+            if value == 1:
+                self.call("switch", "turn_on")
+            else:
+                self.call("switch", "turn_off")
+        else:
+            raise ValueError("Switch state must be 0 or 1")
+
+
+class SirenEntity(HomeAssistantEntity):
+    """Entity handler for Home Assistant siren domain.
+    
+    Sirens are alarm/notification devices that can produce sound.
+    Services: siren.turn_on (with optional tone, volume_level, duration), siren.turn_off
+    """
+    def set_state(self, value):
+        if isinstance(value, int) and value in (0, 1):
+            if value == 1:
+                self.call("siren", "turn_on")
+            else:
+                self.call("siren", "turn_off")
+        else:
+            raise ValueError("Siren state must be 0 or 1")
+
+    def set_volume_level(self, value):
+        """Set siren volume level (0.0 to 1.0)."""
+        if isinstance(value, (int, float)) and 0 <= value <= 1:
+            self.call("siren", "turn_on", volume_level=float(value))
+        else:
+            raise ValueError("Siren volume_level must be 0.0..1.0")
+
+    def set_tone(self, value):
+        """Set siren tone (must be one of the available_tones for the device)."""
+        if isinstance(value, str):
+            self.call("siren", "turn_on", tone=value)
+        else:
+            raise ValueError("Siren tone must be a string")
+
+    def set_duration(self, value):
+        """Set siren duration in seconds."""
+        if isinstance(value, (int, float)) and value > 0:
+            self.call("siren", "turn_on", duration=int(value))
+        else:
+            raise ValueError("Siren duration must be a positive number (seconds)")
+
+
 # =======================
 # Main VOLTTRON Interface
 # =======================
@@ -227,6 +280,8 @@ ENTITY_CLASSES = {
     "fan.": FanEntity,
     "climate.": ClimateEntity,
     "input_boolean.": InputBooleanEntity,
+    "switch.": SwitchEntity,
+    "siren.": SirenEntity,
 }
 
 
@@ -352,6 +407,27 @@ class Interface(BasicRevert, BaseInterface):
                         register.value = numeric
                         result[register.point_name] = numeric
                     else:
+                        attribute = attrs.get(f"{entity_point}", 0)
+                        register.value = attribute
+                        result[register.point_name] = attribute
+
+                elif entity_id.startswith("switch."):
+                    if entity_point == "state":
+                        numeric = 1 if state == "on" else 0
+                        register.value = numeric
+                        result[register.point_name] = numeric
+                    else:
+                        attribute = attrs.get(f"{entity_point}", 0)
+                        register.value = attribute
+                        result[register.point_name] = attribute
+
+                elif entity_id.startswith("siren."):
+                    if entity_point == "state":
+                        numeric = 1 if state == "on" else 0
+                        register.value = numeric
+                        result[register.point_name] = numeric
+                    else:
+                        # Siren attributes like volume_level, tone, available_tones
                         attribute = attrs.get(f"{entity_point}", 0)
                         register.value = attribute
                         result[register.point_name] = attribute
