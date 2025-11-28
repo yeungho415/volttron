@@ -55,6 +55,21 @@ pytestmark = pytest.mark.skipif(
 HOMEASSISTANT_DEVICE_TOPIC = "devices/home_assistant"
 
 
+def create_registry_config(entity_id, entity_point, point_name, units, units_details, writable, starting_value, type_name, notes):
+    """Helper function to create registry configuration entries for any Home Assistant entity."""
+    return {
+        "Entity ID": entity_id,
+        "Entity Point": entity_point,
+        "Volttron Point Name": point_name,
+        "Units": units,
+        "Units Details": units_details,
+        "Writable": writable,
+        "Starting Value": starting_value,
+        "Type": type_name,
+        "Notes": notes
+    }
+
+
 # Get the point which will should be off
 def test_get_point(volttron_instance, config_store):
     expected_values = 0
@@ -83,6 +98,80 @@ def test_set_point(volttron_instance, config_store):
     assert result == expected_values, "The result does not match the expected result."
 
 
+# Test fan state control (on/off)
+def test_fan_set_state(volttron_instance, config_store):
+    agent = volttron_instance.dynamic_agent
+    # Test turning fan on
+    agent.vip.rpc.call(PLATFORM_DRIVER, 'set_point', 'home_assistant', 'fan_state', 1)
+    gevent.sleep(10)
+    result = agent.vip.rpc.call(PLATFORM_DRIVER, 'get_point', 'home_assistant', 'fan_state').get(timeout=20)
+    assert result == 1, "Fan state should be 1 (on)"
+
+    # Test turning fan off
+    agent.vip.rpc.call(PLATFORM_DRIVER, 'set_point', 'home_assistant', 'fan_state', 0)
+    gevent.sleep(10)
+    result = agent.vip.rpc.call(PLATFORM_DRIVER, 'get_point', 'home_assistant', 'fan_state').get(timeout=20)
+    assert result == 0, "Fan state should be 0 (off)"
+
+
+# Test fan percentage control
+def test_fan_set_percentage(volttron_instance, config_store):
+    agent = volttron_instance.dynamic_agent
+    # Test setting percentage to 50
+    agent.vip.rpc.call(PLATFORM_DRIVER, 'set_point', 'home_assistant', 'fan_percentage', 50)
+    gevent.sleep(10)
+    result = agent.vip.rpc.call(PLATFORM_DRIVER, 'get_point', 'home_assistant', 'fan_percentage').get(timeout=20)
+    assert result == 50, "Fan percentage should be 50"
+
+    # Test setting percentage to 100
+    agent.vip.rpc.call(PLATFORM_DRIVER, 'set_point', 'home_assistant', 'fan_percentage', 100)
+    gevent.sleep(10)
+    result = agent.vip.rpc.call(PLATFORM_DRIVER, 'get_point', 'home_assistant', 'fan_percentage').get(timeout=20)
+    assert result == 100, "Fan percentage should be 100"
+
+
+# Test fan preset mode control
+def test_fan_set_preset_mode(volttron_instance, config_store):
+    agent = volttron_instance.dynamic_agent
+    # Test setting preset mode to 'eco'
+    agent.vip.rpc.call(PLATFORM_DRIVER, 'set_point', 'home_assistant', 'fan_preset_mode', 'eco')
+    gevent.sleep(10)
+    result = agent.vip.rpc.call(PLATFORM_DRIVER, 'get_point', 'home_assistant', 'fan_preset_mode').get(timeout=20)
+    assert result == 'eco', "Fan preset mode should be 'eco'"
+
+
+# Test fan direction control
+def test_fan_set_direction(volttron_instance, config_store):
+    agent = volttron_instance.dynamic_agent
+    # Test setting direction to 'reverse'
+    agent.vip.rpc.call(PLATFORM_DRIVER, 'set_point', 'home_assistant', 'fan_direction', 'reverse')
+    gevent.sleep(10)
+    result = agent.vip.rpc.call(PLATFORM_DRIVER, 'get_point', 'home_assistant', 'fan_direction').get(timeout=20)
+    assert result == 'reverse', "Fan direction should be 'reverse'"
+
+    # Test setting direction back to 'forward'
+    agent.vip.rpc.call(PLATFORM_DRIVER, 'set_point', 'home_assistant', 'fan_direction', 'forward')
+    gevent.sleep(10)
+    result = agent.vip.rpc.call(PLATFORM_DRIVER, 'get_point', 'home_assistant', 'fan_direction').get(timeout=20)
+    assert result == 'forward', "Fan direction should be 'forward'"
+
+
+# Test fan oscillating control
+def test_fan_set_oscillating(volttron_instance, config_store):
+    agent = volttron_instance.dynamic_agent
+    # Test turning oscillating on
+    agent.vip.rpc.call(PLATFORM_DRIVER, 'set_point', 'home_assistant', 'fan_oscillating', 1)
+    gevent.sleep(10)
+    result = agent.vip.rpc.call(PLATFORM_DRIVER, 'get_point', 'home_assistant', 'fan_oscillating').get(timeout=20)
+    assert result == 1, "Fan oscillating should be 1 (on)"
+
+    # Test turning oscillating off
+    agent.vip.rpc.call(PLATFORM_DRIVER, 'set_point', 'home_assistant', 'fan_oscillating', 0)
+    gevent.sleep(10)
+    result = agent.vip.rpc.call(PLATFORM_DRIVER, 'get_point', 'home_assistant', 'fan_oscillating').get(timeout=20)
+    assert result == 0, "Fan oscillating should be 0 (off)"
+
+
 @pytest.fixture(scope="module")
 def config_store(volttron_instance, platform_driver):
 
@@ -90,17 +179,14 @@ def config_store(volttron_instance, platform_driver):
     volttron_instance.add_capabilities(volttron_instance.dynamic_agent.core.publickey, capabilities)
 
     registry_config = "homeassistant_test.json"
-    registry_obj = [{
-        "Entity ID": "input_boolean.volttrontest",
-        "Entity Point": "state",
-        "Volttron Point Name": "bool_state",
-        "Units": "On / Off",
-        "Units Details": "off: 0, on: 1",
-        "Writable": True,
-        "Starting Value": 3,
-        "Type": "int",
-        "Notes": "lights hallway"
-    }]
+    registry_obj = [
+        create_registry_config("input_boolean.volttrontest", "state", "bool_state", "On / Off", "off: 0, on: 1", True, 3, "int", "lights hallway"),
+        create_registry_config("fan.volttrontest", "state", "fan_state", "On / Off", "off: 0, on: 1", True, 0, "int", "fan state control"),
+        create_registry_config("fan.volttrontest", "percentage", "fan_percentage", "Percent", "0-100", True, 0, "int", "fan speed percentage"),
+        create_registry_config("fan.volttrontest", "preset_mode", "fan_preset_mode", "Mode", "string preset mode", True, "auto", "string", "fan preset mode"),
+        create_registry_config("fan.volttrontest", "direction", "fan_direction", "Direction", "forward or reverse", True, "forward", "string", "fan direction"),
+        create_registry_config("fan.volttrontest", "oscillating", "fan_oscillating", "On / Off", "off: 0, on: 1", True, 0, "int", "fan oscillating control")
+    ]
 
     volttron_instance.dynamic_agent.vip.rpc.call(CONFIGURATION_STORE,
                                                  "manage_store",
