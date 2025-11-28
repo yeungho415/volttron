@@ -270,6 +270,62 @@ class SirenEntity(HomeAssistantEntity):
             raise ValueError("Siren duration must be a positive number (seconds)")
 
 
+class HumidifierEntity(HomeAssistantEntity):
+    """Entity handler for Home Assistant humidifier domain.
+    
+    Humidifiers control humidity levels in a space.
+    Services: humidifier.turn_on, humidifier.turn_off, humidifier.set_humidity, humidifier.set_mode
+    """
+    def set_state(self, value):
+        if isinstance(value, int) and value in (0, 1):
+            if value == 1:
+                self.call("humidifier", "turn_on")
+            else:
+                self.call("humidifier", "turn_off")
+        else:
+            raise ValueError("Humidifier state must be 0 or 1")
+
+    def set_humidity(self, value):
+        """Set target humidity level (typically 0-100%)."""
+        if isinstance(value, (int, float)) and 0 <= value <= 100:
+            self.call("humidifier", "set_humidity", humidity=int(value))
+        else:
+            raise ValueError("Humidifier humidity must be 0..100")
+
+    def set_mode(self, value):
+        """Set humidifier mode (must be one of the available_modes for the device)."""
+        if isinstance(value, str):
+            self.call("humidifier", "set_mode", mode=value)
+        else:
+            raise ValueError("Humidifier mode must be a string")
+
+
+class LawnMowerEntity(HomeAssistantEntity):
+    """Entity handler for Home Assistant lawn_mower domain.
+    
+    Lawn mowers are robotic mowing devices.
+    Services: lawn_mower.start_mowing, lawn_mower.pause, lawn_mower.dock
+    States: mowing, docked, paused, error, returning
+    State mapping: 0=docked, 1=mowing, 2=paused, 3=returning, 4=error
+    """
+    STATE_MAP = {0: "docked", 1: "mowing", 2: "paused", 3: "returning", 4: "error"}
+    STATE_MAP_REV = {"docked": 0, "mowing": 1, "paused": 2, "returning": 3, "error": 4}
+
+    def set_state(self, value):
+        """Set lawn mower state: 0=dock, 1=start_mowing, 2=pause."""
+        if isinstance(value, int):
+            if value == 0:
+                self.call("lawn_mower", "dock")
+            elif value == 1:
+                self.call("lawn_mower", "start_mowing")
+            elif value == 2:
+                self.call("lawn_mower", "pause")
+            else:
+                raise ValueError("Lawn mower state must be 0 (dock), 1 (start_mowing), or 2 (pause)")
+        else:
+            raise ValueError("Lawn mower state must be an integer")
+
+
 # =======================
 # Main VOLTTRON Interface
 # =======================
@@ -282,6 +338,8 @@ ENTITY_CLASSES = {
     "input_boolean.": InputBooleanEntity,
     "switch.": SwitchEntity,
     "siren.": SirenEntity,
+    "humidifier.": HumidifierEntity,
+    "lawn_mower.": LawnMowerEntity,
 }
 
 
@@ -428,6 +486,32 @@ class Interface(BasicRevert, BaseInterface):
                         result[register.point_name] = numeric
                     else:
                         # Siren attributes like volume_level, tone, available_tones
+                        attribute = attrs.get(f"{entity_point}", 0)
+                        register.value = attribute
+                        result[register.point_name] = attribute
+
+                elif entity_id.startswith("humidifier."):
+                    if entity_point == "state":
+                        numeric = 1 if state == "on" else 0
+                        register.value = numeric
+                        result[register.point_name] = numeric
+                    else:
+                        # Humidifier attributes like humidity, current_humidity, mode
+                        attribute = attrs.get(f"{entity_point}", 0)
+                        register.value = attribute
+                        result[register.point_name] = attribute
+
+                elif entity_id.startswith("lawn_mower."):
+                    if entity_point == "state":
+                        # Map lawn mower states to numeric values
+                        map_rev = {"docked": 0, "mowing": 1, "paused": 2, "returning": 3, "error": 4}
+                        if state in map_rev:
+                            register.value = map_rev[state]
+                            result[register.point_name] = map_rev[state]
+                        else:
+                            _log.error("State %s from %s is not yet supported", state, entity_id)
+                    else:
+                        # Lawn mower attributes like battery_level, etc.
                         attribute = attrs.get(f"{entity_point}", 0)
                         register.value = attribute
                         result[register.point_name] = attribute
