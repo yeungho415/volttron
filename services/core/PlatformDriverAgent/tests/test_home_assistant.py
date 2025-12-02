@@ -310,13 +310,13 @@ def test_humidifier_set_humidity(volttron_instance, config_store):
 def test_humidifier_set_humidity_range(volttron_instance, config_store):
     """Test setting humidifier humidity to different values within range."""
     agent = volttron_instance.dynamic_agent
-    
+
     # Test low humidity
     agent.vip.rpc.call(PLATFORM_DRIVER, 'set_point', 'home_assistant', 'humidifier_humidity', 30)
     gevent.sleep(5)
     result = agent.vip.rpc.call(PLATFORM_DRIVER, 'get_point', 'home_assistant', 'humidifier_humidity').get(timeout=20)
     assert result == 30, f"Humidifier humidity should be 30, got {result}"
-    
+
     # Test high humidity
     agent.vip.rpc.call(PLATFORM_DRIVER, 'set_point', 'home_assistant', 'humidifier_humidity', 80)
     gevent.sleep(5)
@@ -394,23 +394,23 @@ def test_lawn_mower_dock(volttron_instance, config_store):
 def test_lawn_mower_full_cycle(volttron_instance, config_store):
     """Test full lawn mower cycle: dock -> mow -> pause -> dock."""
     agent = volttron_instance.dynamic_agent
-    
+
     # Start from docked state
     agent.vip.rpc.call(PLATFORM_DRIVER, 'set_point', 'home_assistant', 'mower_state', 0)
     gevent.sleep(5)
-    
+
     # Start mowing
     agent.vip.rpc.call(PLATFORM_DRIVER, 'set_point', 'home_assistant', 'mower_state', 1)
     gevent.sleep(5)
     result = agent.vip.rpc.call(PLATFORM_DRIVER, 'get_point', 'home_assistant', 'mower_state').get(timeout=20)
     assert result == 1, f"After start: state should be 1 (mowing), got {result}"
-    
+
     # Pause
     agent.vip.rpc.call(PLATFORM_DRIVER, 'set_point', 'home_assistant', 'mower_state', 2)
     gevent.sleep(5)
     result = agent.vip.rpc.call(PLATFORM_DRIVER, 'get_point', 'home_assistant', 'mower_state').get(timeout=20)
     assert result == 2, f"After pause: state should be 2 (paused), got {result}"
-    
+
     # Return to dock
     agent.vip.rpc.call(PLATFORM_DRIVER, 'set_point', 'home_assistant', 'mower_state', 0)
     gevent.sleep(5)
@@ -443,7 +443,7 @@ def test_scrape_all_includes_all_entities(volttron_instance, config_store):
     """Test that scrape_all includes points from all entity types."""
     agent = volttron_instance.dynamic_agent
     result = agent.vip.rpc.call(PLATFORM_DRIVER, 'scrape_all', 'home_assistant').get(timeout=20)
-    
+
     # Check that all expected points are present
     expected_points = [
         'bool_state',           # input_boolean
@@ -453,10 +453,10 @@ def test_scrape_all_includes_all_entities(volttron_instance, config_store):
         'humidifier_state',     # humidifier (new)
         'mower_state',          # lawn_mower (new)
     ]
-    
+
     for point in expected_points:
         assert point in result, f"{point} should be in scrape_all results"
-    
+
     logger.info("scrape_all result: %s", result)
 
 
@@ -470,7 +470,7 @@ def config_store(volttron_instance, platform_driver):
     registry_obj = [
         # Input Boolean (existing)
         create_registry_config("input_boolean.volttrontest", "state", "bool_state", "On / Off", "off: 0, on: 1", True, 3, "int", "lights hallway"),
-        # Fan (existing)
+        # Fan (new)
         create_registry_config("fan.volttrontest", "state", "fan_state", "On / Off", "off: 0, on: 1", True, 0, "int", "fan state control"),
         create_registry_config("fan.volttrontest", "percentage", "fan_percentage", "Percent", "0-100", True, 0, "int", "fan speed percentage"),
         create_registry_config("fan.volttrontest", "preset_mode", "fan_preset_mode", "Mode", "string preset mode", True, "auto", "string", "fan preset mode"),

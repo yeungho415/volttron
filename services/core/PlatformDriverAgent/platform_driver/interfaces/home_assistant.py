@@ -65,7 +65,9 @@ class HomeAssistantRegister(BaseRegister):
         default_value=None,
         description="",
     ):
-        super(HomeAssistantRegister, self).__init__("byte", read_only, pointName, units, description="")
+        super(HomeAssistantRegister, self).__init__(
+            "byte", read_only, pointName, units, description=""
+        )
         self.reg_type = reg_type
         self.attributes = attributes
         self.entity_id = entity_id
@@ -94,9 +96,7 @@ class HomeAssistantAPI:
             resp = requests.get(url, headers=self.headers)
             if resp.status_code == 200:
                 return resp.json()
-            raise Exception(
-                f"GET {url} failed {resp.status_code} {resp.text}"
-            )
+            raise Exception(f"GET {url} failed {resp.status_code} {resp.text}")
         except requests.RequestException as e:
             raise Exception(f"GET {url} error {e}") from e
 
@@ -130,7 +130,9 @@ class HomeAssistantEntity:
     def call(self, device, action, **data):
         payload = {"entity_id": self.entity_id}
         payload.update(data)
-        self.api.service_call(device, action, payload, f"{device}/{action} {self.entity_id}")
+        self.api.service_call(
+            device, action, payload, f"{device}/{action} {self.entity_id}"
+        )
 
     # Default implementations raise unless overridden
     def set_state(self, value):
@@ -183,6 +185,10 @@ class ClimateEntity(HomeAssistantEntity):
 
 
 class FanEntity(HomeAssistantEntity):
+    """
+    Entity handler for Home Assistant fan domain.
+
+    """
     def set_state(self, value):
         if isinstance(value, int) and value in (0, 1):
             if value == 1:
@@ -218,11 +224,12 @@ class FanEntity(HomeAssistantEntity):
 
 
 class SwitchEntity(HomeAssistantEntity):
-    """Entity handler for Home Assistant switch domain.
-    
-    Switches are simple on/off devices like smart plugs, relays, etc.
-    Services: switch.turn_on, switch.turn_off, switch.toggle
     """
+    Entity handler for Home Assistant switch domain.
+
+    Switches are simple on/off devices like smart plugs, relays, etc.
+    """
+
     def set_state(self, value):
         if isinstance(value, int) and value in (0, 1):
             if value == 1:
@@ -234,11 +241,12 @@ class SwitchEntity(HomeAssistantEntity):
 
 
 class SirenEntity(HomeAssistantEntity):
-    """Entity handler for Home Assistant siren domain.
-    
-    Sirens are alarm/notification devices that can produce sound.
-    Services: siren.turn_on (with optional tone, volume_level, duration), siren.turn_off
     """
+    Entity handler for Home Assistant siren domain.
+
+    Sirens are alarm/notification devices that can produce sound.
+    """
+
     def set_state(self, value):
         if isinstance(value, int) and value in (0, 1):
             if value == 1:
@@ -271,11 +279,12 @@ class SirenEntity(HomeAssistantEntity):
 
 
 class HumidifierEntity(HomeAssistantEntity):
-    """Entity handler for Home Assistant humidifier domain.
-    
-    Humidifiers control humidity levels in a space.
-    Services: humidifier.turn_on, humidifier.turn_off, humidifier.set_humidity, humidifier.set_mode
     """
+    Entity handler for Home Assistant humidifier domain.
+
+    Humidifiers control humidity levels in a space.
+    """
+
     def set_state(self, value):
         if isinstance(value, int) and value in (0, 1):
             if value == 1:
@@ -301,15 +310,15 @@ class HumidifierEntity(HomeAssistantEntity):
 
 
 class LawnMowerEntity(HomeAssistantEntity):
-    """Entity handler for Home Assistant lawn_mower domain.
-    
+    """
+    Entity handler for Home Assistant lawn_mower domain.
+
     Lawn mowers are robotic mowing devices.
-    Services: lawn_mower.start_mowing, lawn_mower.pause, lawn_mower.dock
-    States: mowing, docked, paused, error, returning
     State mapping: 0=docked, 1=mowing, 2=paused, 3=returning, 4=error
     """
+
     STATE_MAP = {0: "docked", 1: "mowing", 2: "paused", 3: "returning", 4: "error"}
-    STATE_MAP_REV = {"docked": 0, "mowing": 1, "paused": 2, "returning": 3, "error": 4}
+    STATE_MAP_REV = {v: k for k, v in STATE_MAP.items()}
 
     def set_state(self, value):
         """Set lawn mower state: 0=dock, 1=start_mowing, 2=pause."""
@@ -321,26 +330,48 @@ class LawnMowerEntity(HomeAssistantEntity):
             elif value == 2:
                 self.call("lawn_mower", "pause")
             else:
-                raise ValueError("Lawn mower state must be 0 (dock), 1 (start_mowing), or 2 (pause)")
+                raise ValueError(
+                    "Lawn mower state must be 0 (dock), 1 (start_mowing), or 2 (pause)"
+                )
         else:
             raise ValueError("Lawn mower state must be an integer")
+
+
+# ========================
+# Entity Factory
+# ========================
+
+class EntityFactory:
+    """Factory that creates entity handlers based on HA domain."""
+
+    def __init__(self, api):
+        self.api = api
+        self._registry = {
+            "light": LightEntity,
+            "fan": FanEntity,
+            "climate": ClimateEntity,
+            "input_boolean": InputBooleanEntity,
+            "switch": SwitchEntity,
+            "siren": SirenEntity,
+            "humidifier": HumidifierEntity,
+            "lawn_mower": LawnMowerEntity,
+        }
+
+    def register(self, domain, entity_cls):
+        """Allow overriding or adding new domain handlers."""
+        self._registry[domain] = entity_cls
+
+    def create(self, entity_id):
+        if not self.api:
+            raise Exception("API not initialized")
+        domain = entity_id.split(".", 1)[0]
+        entity_cls = self._registry.get(domain, HomeAssistantEntity)
+        return entity_cls(self.api, entity_id)
 
 
 # =======================
 # Main VOLTTRON Interface
 # =======================
-
-
-ENTITY_CLASSES = {
-    "light.": LightEntity,
-    "fan.": FanEntity,
-    "climate.": ClimateEntity,
-    "input_boolean.": InputBooleanEntity,
-    "switch.": SwitchEntity,
-    "siren.": SirenEntity,
-    "humidifier.": HumidifierEntity,
-    "lawn_mower.": LawnMowerEntity,
-}
 
 
 class Interface(BasicRevert, BaseInterface):
@@ -352,6 +383,7 @@ class Interface(BasicRevert, BaseInterface):
         self.port = None
         self.units = None
         self.api = None
+        self.entity_factory = None
 
     def configure(self, config_dict, registry_config_str):
         self.ip_address = config_dict.get("ip_address")
@@ -369,16 +401,8 @@ class Interface(BasicRevert, BaseInterface):
             raise ValueError("Port is required.")
 
         self.api = HomeAssistantAPI(self.ip_address, int(self.port), self.access_token)
+        self.entity_factory = EntityFactory(self.api)
         self.parse_config(registry_config_str)
-
-    # helpers
-    def _entity_handler_for(self, entity_id):
-        if not self.api:
-            raise Exception("API not initialized")
-        for prefix, cls in ENTITY_CLASSES.items():
-            if entity_id.startswith(prefix):
-                return cls(self.api, entity_id)
-        raise ValueError(f"Unsupported entity_id: {entity_id}")
 
     def get_entity_data(self, entity_id):
         if not self.api:
@@ -386,17 +410,20 @@ class Interface(BasicRevert, BaseInterface):
         return self.api.get_state(entity_id)
 
     # points API
+
     def get_point(self, point_name):
         register = self.get_register_by_name(point_name)
         entity_data = self.get_entity_data(register.entity_id)
         if register.point_name == "state":
             return entity_data.get("state")
-        return entity_data.get("attributes", {}).get(f"{register.point_name}", 0)
+        return entity_data.get("attributes", {}).get(register.point_name, 0)
 
     def _set_point(self, point_name, value):
         register = self.get_register_by_name(point_name)
         if register.read_only:
-            raise IOError("Trying to write to a point configured read only: " + point_name)
+            raise IOError(
+                "Trying to write to a point configured read only: " + point_name
+            )
 
         # cast value to register type
         try:
@@ -404,7 +431,7 @@ class Interface(BasicRevert, BaseInterface):
         except Exception as e:
             raise ValueError(f"Cannot cast {value!r} to {register.reg_type}") from e
 
-        handler = self._entity_handler_for(register.entity_id)
+        handler = self.entity_factory.create(register.entity_id)
         entity_point = register.entity_point
 
         if entity_point == "state":
@@ -417,12 +444,15 @@ class Interface(BasicRevert, BaseInterface):
             elif hasattr(handler, method_name):
                 getattr(handler, method_name)(cast_value)
             else:
-                raise ValueError(f"Unexpected point_name {point_name} for entity {register.entity_id}")
+                raise ValueError(
+                    f"Unexpected point_name {point_name} for entity {register.entity_id}"
+                )
 
         register.value = cast_value
         return register.value
 
     def _scrape_all(self):
+        """Read all points and normalize states to numbers where needed."""
         result = {}
         read_registers = self.get_registers_by_type("byte", True)
         write_registers = self.get_registers_by_type("byte", False)
@@ -430,89 +460,62 @@ class Interface(BasicRevert, BaseInterface):
         for register in read_registers + write_registers:
             entity_id = register.entity_id
             entity_point = register.entity_point
+            domain = entity_id.split(".", 1)[0]
+
             try:
                 entity_data = self.get_entity_data(entity_id)
                 state = entity_data.get("state")
                 attrs = entity_data.get("attributes", {})
 
-                if entity_id.startswith("climate."):
+                if domain == "climate":
                     if entity_point == "state":
-                        # map climate modes to numeric as in original
                         map_rev = {"off": 0, "heat": 2, "cool": 3, "auto": 4}
                         if state in map_rev:
-                            register.value = map_rev[state]
-                            result[register.point_name] = map_rev[state]
+                            numeric = map_rev[state]
+                            register.value = numeric
+                            result[register.point_name] = numeric
                         else:
-                            _log.error("State %s from %s is not yet supported", state, entity_id)
+                            _log.error(
+                                "State %s from %s is not yet supported",
+                                state,
+                                entity_id,
+                            )
                     else:
-                        attribute = attrs.get(f"{entity_point}", 0)
+                        attribute = attrs.get(entity_point, 0)
                         register.value = attribute
                         result[register.point_name] = attribute
 
-                elif entity_id.startswith("fan."):
+                elif domain in ("fan", "light", "input_boolean", "switch", "siren", "humidifier"):
                     if entity_point == "state":
                         numeric = 1 if state == "on" else 0
                         register.value = numeric
                         result[register.point_name] = numeric
                     else:
-                        attribute = attrs.get(f"{entity_point}", 0)
+                        attribute = attrs.get(entity_point, 0)
                         register.value = attribute
                         result[register.point_name] = attribute
 
-                elif entity_id.startswith("light.") or entity_id.startswith("input_boolean."):
+                elif domain == "lawn_mower":
                     if entity_point == "state":
-                        numeric = 1 if state == "on" else 0
-                        register.value = numeric
-                        result[register.point_name] = numeric
-                    else:
-                        attribute = attrs.get(f"{entity_point}", 0)
-                        register.value = attribute
-                        result[register.point_name] = attribute
-
-                elif entity_id.startswith("switch."):
-                    if entity_point == "state":
-                        numeric = 1 if state == "on" else 0
-                        register.value = numeric
-                        result[register.point_name] = numeric
-                    else:
-                        attribute = attrs.get(f"{entity_point}", 0)
-                        register.value = attribute
-                        result[register.point_name] = attribute
-
-                elif entity_id.startswith("siren."):
-                    if entity_point == "state":
-                        numeric = 1 if state == "on" else 0
-                        register.value = numeric
-                        result[register.point_name] = numeric
-                    else:
-                        # Siren attributes like volume_level, tone, available_tones
-                        attribute = attrs.get(f"{entity_point}", 0)
-                        register.value = attribute
-                        result[register.point_name] = attribute
-
-                elif entity_id.startswith("humidifier."):
-                    if entity_point == "state":
-                        numeric = 1 if state == "on" else 0
-                        register.value = numeric
-                        result[register.point_name] = numeric
-                    else:
-                        # Humidifier attributes like humidity, current_humidity, mode
-                        attribute = attrs.get(f"{entity_point}", 0)
-                        register.value = attribute
-                        result[register.point_name] = attribute
-
-                elif entity_id.startswith("lawn_mower."):
-                    if entity_point == "state":
-                        # Map lawn mower states to numeric values
-                        map_rev = {"docked": 0, "mowing": 1, "paused": 2, "returning": 3, "error": 4}
+                        map_rev = {
+                            "docked": 0,
+                            "mowing": 1,
+                            "paused": 2,
+                            "returning": 3,
+                            "error": 4,
+                        }
                         if state in map_rev:
-                            register.value = map_rev[state]
-                            result[register.point_name] = map_rev[state]
+                            numeric = map_rev[state]
+                            register.value = numeric
+                            result[register.point_name] = numeric
                         else:
-                            _log.error("State %s from %s is not yet supported", state, entity_id)
+                            _log.error(
+                                "State %s from %s is not yet supported",
+                                state,
+                                entity_id,
+                            )
                     else:
-                        # Lawn mower attributes like battery_level, etc.
-                        attribute = attrs.get(f"{entity_point}", 0)
+                        attribute = attrs.get(entity_point, 0)
                         register.value = attribute
                         result[register.point_name] = attribute
 
@@ -521,7 +524,7 @@ class Interface(BasicRevert, BaseInterface):
                         register.value = state
                         result[register.point_name] = state
                     else:
-                        attribute = attrs.get(f"{entity_point}", 0)
+                        attribute = attrs.get(entity_point, 0)
                         register.value = attribute
                         result[register.point_name] = attribute
 
