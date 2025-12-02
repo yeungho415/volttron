@@ -13,7 +13,6 @@ Write access (control) is supported for the following device types:
 - **Sirens** - state, volume_level, tone, and duration
 - **Humidifiers** - state, humidity, and mode
 - **Lawn Mowers** - state (dock/mow/pause)
-- **Input Booleans** - state (on/off)
 
 The following diagram shows interaction between platform driver agent and home assistant driver.
 
@@ -71,7 +70,7 @@ Registry Configuration
 
 Registry file can contain one single device and its attributes or a logical group of devices and its
 attributes. Each entry should include the full entity id of the device, including but not limited to home assistant provided prefix
-such as "light.", "climate.", "fan.", "switch.", "siren.", "humidifier.", "lawn_mower." etc. The driver uses these prefixes to convert states into integers.
+such as "light.", "climate." etc. The driver uses these prefixes to convert states into integers.
 
 Each entry in a registry file should also have a 'Entity Point' and a unique value for 'Volttron Point Name'. The 'Entity ID' maps to the device instance, the 'Entity Point' extracts the attribute or state, and 'Volttron Point Name' determines the name of that point as it appears in VOLTTRON.
 
